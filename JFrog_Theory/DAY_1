@@ -1,0 +1,41 @@
+Day 1 — What is JFrog? Platform Overview
+What is JFrog?
+JFrog is a DevOps platform centered around artifact management — storing, organizing, securing, and distributing the software artifacts (binaries, packages, Docker images, etc.) that your CI/CD pipeline produces and consumes.
+
+Think of JFrog as the single source of truth for all your binaries — every build artifact, every dependency, every Docker image passes through it.
+
+The Problem JFrog Solves
+Without a central artifact manager:
+
+Teams download dependencies directly from the internet (slow, unreliable, uncontrolled)
+No traceability — which binary was deployed to production?
+No security — no scanning of what's pulled in
+No governance — anyone can publish anything anywhere
+Build tools reach external registries directly — firewall and network issues
+
+JFrog Product Suite
+Product	Purpose
+Artifactory	Universal artifact repository manager — the core product
+Xray	Security & compliance scanning of artifacts
+Pipelines	CI/CD pipeline orchestration
+Distribution	Distribute release bundles to edge nodes globally
+Connect	IoT device management and distribution
+Catalog	Open-source package metadata and risk management
+The most important for daily use: Artifactory + Xray.
+
+What is Artifactory?
+Artifactory is a universal binary repository manager that supports virtually every package format:
+
+Package Type	Format
+Java	Maven, Gradle, Ivy, SBT
+JavaScript	npm, YarnKey Concepts
+Repository — A storage location for a specific type of artifact
+Artifact — Any binary: a JAR, a Docker image, an npm package, a .zip file
+Build Info — Metadata linking a build to all its inputs and outputs
+Package Type — The format/technology of the repository (Maven, Docker, npm, etc.)
+Python	PyPI
+Containers	Docker, OCI
+Infrastructure	Helm (Kubernetes charts)
+OS packages	Debian, RPM, Alpine
+Generic binaries	Any file type
+And more	Go, NuGet, CocoaPods, Composer...
