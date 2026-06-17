@@ -1,0 +1,48 @@
+Day 4 — JFrog CLI and REST API
+JFrog CLI
+The JFrog CLI (jf) is the primary command-line interface for interacting with Artifactory. It handles:
+
+Uploading/downloading artifacts
+Build integration (collecting build info)
+Managing configurations
+Running Xray scans
+Managing repositories and permissions
+CLI Configuration
+The CLI uses server configurations — named profiles that store URL, credentials, and other settings. You can configure multiple servers (dev, staging, prod).
+jf config add myserver \
+  --url https://mycompany.jfrog.io \
+  --user admin \
+  --password mypassword
+After configuration, all CLI commands implicitly use the configured server.
+
+Upload Spec
+The CLI uses File Specs — JSON documents describing what to upload/download and where. This decouples the operation from the CLI command.
+
+{
+  "files": [
+    {
+      "pattern": "build/output/*.jar",
+      "target": "libs-release-local/com/mycompany/myapp/1.0.0/",
+      "props": "build.number=42;env=prod"
+    }
+  ]
+}
+
+REST API
+Artifactory has a comprehensive REST API for everything — creating repos, managing permissions, searching artifacts, getting build info. Used for automation and integration.
+
+Key API endpoints:
+GET  /artifactory/api/storage/{repoKey}/{path}     → file info
+PUT  /artifactory/{repoKey}/{path}                 → upload artifact
+GET  /artifactory/{repoKey}/{path}                 → download artifact
+GET  /artifactory/api/build/{buildName}/{buildNumber} → build info
+POST /artifactory/api/search/aql                  → AQL search
+
+AQL (Artifactory Query Language)
+A powerful query language to search artifacts by any property — name, repo, date, custom properties, build info, etc.
+
+items.find({
+  "repo": "libs-release-local",
+  "@build.number": "42"
+})
+
