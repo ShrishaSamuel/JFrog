@@ -1,0 +1,40 @@
+Day 5 — Build Integration and Build Info
+
+# Start tracking a build
+export BUILD_NAME="myapp-build"
+export BUILD_NUMBER="42"
+
+# Configure Maven to use Artifactory
+jf mvn-config \
+  --repo-resolve-releases libs-virtual \
+  --repo-resolve-snapshots libs-virtual \
+  --repo-deploy-releases libs-release-local \
+  --repo-deploy-snapshots libs-snapshot-local
+
+# Run Maven build with JFrog tracking (collects build info)
+jf mvn clean install \
+  --build-name $BUILD_NAME \
+  --build-number $BUILD_NUMBER
+
+# Add environment variables to build info
+jf rt build-add-env $BUILD_NAME $BUILD_NUMBER
+
+# Add Git info to build info
+jf rt build-add-git $BUILD_NAME $BUILD_NUMBER
+
+# Publish build info to Artifactory
+jf rt build-publish $BUILD_NAME $BUILD_NUMBER
+
+# View build info in CLI
+jf rt build-info $BUILD_NAME $BUILD_NUMBER
+
+# Promote build from snapshot repo to release repo
+jf rt build-promote $BUILD_NAME $BUILD_NUMBER \
+  libs-release-local \
+  --status "Released" \
+  --comment "Promoted after QA approval" \
+  --source-repo libs-snapshot-local \
+  --copy
+
+# Discard old builds (keep last 10)
+jf rt build-discard $BUILD_NAME --max-builds 10
