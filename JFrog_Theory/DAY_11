@@ -1,0 +1,45 @@
+Day 11 — JFrog Pipelines and CI/CD Integration
+JFrog Pipelines
+A CI/CD orchestration system natively integrated with Artifactory. Pipelines are defined in YAML and are aware of Artifactory resources — artifacts, builds, and release bundles.
+
+Core Concepts
+Resources — Inputs and outputs of pipeline steps:
+
+GitRepo — a Git repository
+BuildInfo — a build published to Artifactory
+ArtifactoryGenericRepo — artifacts in Artifactory
+ReleaseBundle — a signed, immutable bundle of artifacts
+PropertyBag — key-value store passed between steps
+Steps — Units of work in a pipeline:
+
+Bash — run arbitrary shell commands
+MvnBuild, GradleBuild, NpmBuild — native build steps
+DockerBuild, DockerPush — container steps
+XrayScan — trigger a security scan
+PromoteBuild — promote build from one repo to another
+Pipelines — sequences of steps with resource triggers.
+
+GitHub Actions Integration
+- uses: jfrog/setup-jfrog-cli@v4
+  with:
+    jfrog-url: ${{ secrets.JF_URL }}
+    oidc-provider-name: github
+    oidc-audience: jfrog
+
+- run: jf mvn-config --repo-resolve-releases libs-release --repo-deploy libs-snapshot
+- run: jf mvn clean install
+- run: jf rt build-publish
+
+Release Bundles
+A Release Bundle is a signed, immutable, verified collection of artifacts representing a release candidate:
+
+Cryptographically signed — tamper-proof
+Version-controlled
+Can be distributed to edge nodes via JFrog Distribution
+The canonical artifact of a release
+Release Bundle V2 (current generation):
+
+Release Bundle: myapp v2.5.0
+  ├── myapp-2.5.0.jar
+  ├── myapp-2.5.0-sources.jar
+  └── myapp-docker-2.5.0.tar
