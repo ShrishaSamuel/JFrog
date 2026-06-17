@@ -1,0 +1,44 @@
+Day 3 — Package Types and Repository Configuration
+Why Package Types Matter
+Artifactory handles each package format differently:
+
+Maven — understands pom.xml, handles snapshot/release logic
+Docker — implements the Docker Registry HTTP API V2
+npm — implements the npm registry protocol
+PyPI — implements the PyPI simple index API
+Helm — serves charts as a Helm repository
+The package type determines which protocol Artifactory speaks with clients (Maven, Docker CLI, pip, npm, helm).
+
+Maven Repositories
+Maven has a concept of releases vs snapshots:
+
+Release — stable, versioned artifacts (1.0.0, 2.3.1) — immutable once published
+Snapshot — in-development versions (1.0.0-SNAPSHOT) — can be overwritten
+Best practice: separate local repos for releases and snapshots.
+libs-release-local    → only release artifacts
+libs-snapshot-local   → only snapshot artifacts
+Artifactory enforces this — you can configure a repo to accept only releases or only snapshots.
+
+Docker Repositories
+Artifactory acts as a fully compliant Docker registry. You:
+
+docker login to Artifactory instead of Docker Hub
+docker push images to your Artifactory repo
+docker pull from Artifactory — either your own images (local) or proxied from Docker Hub (remote)
+Each Docker local repo has a subdomain or path:
+
+mycompany.jfrog.io/docker-local/myimage:1.0
+
+PyPI Repositories
+Artifactory acts as a PyPI index. Configure pip to use Artifactory:
+
+pip install mypackage --index-url https://mycompany.jfrog.io/artifactory/api/pypi/pypi-virtual/simple
+
+Helm Repositories
+Store Helm charts for Kubernetes deployments. Artifactory serves as a Helm chart repository:
+
+helm repo add myrepo https://mycompany.jfrog.io/artifactory/helm-virtual
+helm install myapp myrepo/mychart
+
+Generic Repositories
+For anything that doesn't fit a specific package type — binaries, zip files, installers, scripts. Useful for storing build outputs that aren't standard packages.
