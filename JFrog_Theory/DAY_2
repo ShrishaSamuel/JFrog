@@ -1,0 +1,57 @@
+Day 2 — Repository Types: Local, Remote, Virtual
+This is the most fundamental concept in Artifactory. Every repository is one of three types.
+
+1. Local Repository
+A local storage repository — you own the artifacts here. Your CI/CD pipeline publishes artifacts to local repositories.
+
+You have full control
+Artifacts are physically stored inside Artifactory
+Versions are tracked with full audit history
+Examples: libs-release-local, docker-prod-local, pypi-local
+
+CI/CD Build → publishes → Local Repository
+
+2. Remote Repository
+A proxy and cache for an external registry. When you request an artifact, Artifactory:
+
+Checks its local cache — if found, serves it immediately
+If not cached, fetches it from the remote source (Maven Central, Docker Hub, npmjs, etc.)
+Caches it locally for future requests
+Benefits:
+
+Speed — cached artifacts served locally
+Reliability — builds don't break if Docker Hub is down
+Control — you can block specific packages
+Security — only scanned artifacts enter your network
+
+Developer/Build → requests → Remote Repository → (if not cached) → External Registry
+                                     ↓
+                              Caches locally
+
+Common remote repos: npmjs-remote (proxy to npmjs.org), maven-central-remote, dockerhub-remote
+
+3. Virtual Repository
+An aggregation layer that combines multiple local and remote repositories behind a single URL. Your build tool points to one URL — Artifactory routes requests to the appropriate underlying repository.
+
+Resolution order matters: Artifactory searches repositories in the order you configure.
+
+Build tool → Virtual Repository URL
+                    ↓
+        ┌───────────────────────┐
+        │ libs-release-local    │ (check here first)
+        │ libs-snapshot-local   │ (check here second)
+        │ maven-central-remote  │ (check here third)
+        └───────────────────────┘
+
+Why Virtual Repositories?
+
+One URL for builds — no need to configure multiple sources in build tools
+Add/remove underlying repos without changing build configs
+Different virtual repos for dev vs prod (different resolution order, different permissions)
+Naming Convention (Best Practice)
+{team}-{technology}-{local/remote/virtual}-{environment}
+
+libs-maven-local-release
+libs-maven-remote-central
+libs-maven-virtual-dev
+docker-images-local-prod
