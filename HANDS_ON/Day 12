@@ -1,0 +1,58 @@
+Day 12 — Advanced AQL and REST API
+
+# --- Advanced AQL Queries ---
+
+# Find all artifacts in a build
+jf rt curl -XPOST /api/search/aql -H "Content-Type: text/plain" -d '
+items.find({
+  "@build.name": "myapp-build",
+  "@build.number": "42"
+}).include("name","repo","path","@build.name","@build.number")
+'
+
+# Find Docker images by tag pattern
+jf rt curl -XPOST /api/search/aql -H "Content-Type: text/plain" -d '
+items.find({
+  "repo": "docker-local",
+  "name": {"$match": "*.json"},
+  "path": {"$match": "myapp/*"}
+}).include("name","path","created","size")
+'
+
+# Find top 10 most downloaded artifacts
+jf rt curl -XPOST /api/search/aql -H "Content-Type: text/plain" -d '
+items.find({
+  "type": "file",
+  "repo": "libs-release-local"
+}).include("name","path","stat.downloads")
+.sort({"$desc": ["stat.downloads"]})
+.limit(10)
+'
+
+# --- Useful REST API Calls ---
+
+# Get system health
+curl https://mycompany.jfrog.io/artifactory/api/system/ping \
+  -u admin:password
+
+# Get artifact checksum info
+curl https://mycompany.jfrog.io/artifactory/api/storage/libs-release-local/myapp-1.0.jar \
+  -u admin:password
+
+# Copy an artifact
+curl -X POST \
+  "https://mycompany.jfrog.io/artifactory/api/copy/libs-snapshot-local/myapp-1.0.jar?to=/libs-release-local/myapp-1.0.jar" \
+  -u admin:password
+
+# Move an artifact
+curl -X POST \
+  "https://mycompany.jfrog.io/artifactory/api/move/libs-snapshot-local/myapp-1.0.jar?to=/libs-release-local/myapp-1.0.jar" \
+  -u admin:password
+
+# Get storage summary per repository
+curl https://mycompany.jfrog.io/artifactory/api/storageinfo \
+  -u admin:password | python3 -m json.tool
+
+# Get all builds
+curl https://mycompany.jfrog.io/artifactory/api/build \
+  -u admin:password
