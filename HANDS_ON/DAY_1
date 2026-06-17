@@ -1,0 +1,26 @@
+Day 1 — Setup and First Login
+
+# Install JFrog CLI
+curl -fL https://install-cli.jfrog.io | sh
+
+# Verify installation
+jf --version
+
+# If using JFrog Cloud (SaaS trial) at mycompany.jfrog.io
+# Configure CLI with your instance
+jf config add myserver \
+  --url https://mycompany.jfrog.io \
+  --user admin \
+  --password <your-password>
+
+# Or use interactive setup
+jf config add
+
+# List configured servers
+jf config show
+
+# Verify connection
+jf rt ping
+
+# Open Artifactory UI
+# Navigate to: https://mycompany.jfrog.io/ui/repos/tree/General
