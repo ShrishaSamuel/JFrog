@@ -1,0 +1,63 @@
+Day 11 — CI/CD Pipeline Integration (GitHub Actions)
+
+
+# .github/workflows/build-and-publish.yml
+name: Build and Publish to Artifactory
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Setup JFrog CLI with OIDC (no password needed)
+      - uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ secrets.JF_URL }}
+        with:
+          oidc-provider-name: github
+          oidc-audience: jfrog
+
+      # Configure Maven to use Artifactory
+      - name: Configure Artifactory
+        run: |
+          jf mvn-config \
+            --repo-resolve-releases libs-virtual \
+            --repo-deploy-releases libs-release-local \
+            --repo-deploy-snapshots libs-snapshot-local
+
+      # Build and deploy with build info
+      - name: Build
+        run: |
+          jf mvn clean deploy \
+            --build-name ${{ github.workflow }} \
+            --build-number ${{ github.run_number }}
+
+      # Collect env vars and git info
+      - name: Add Build Info
+        run: |
+          jf rt build-add-env ${{ github.workflow }} ${{ github.run_number }}
+          jf rt build-add-git ${{ github.workflow }} ${{ github.run_number }}
+
+      # Publish build info
+      - name: Publish Build Info
+        run: jf rt build-publish ${{ github.workflow }} ${{ github.run_number }}
+
+      # Scan for vulnerabilities
+      - name: Xray Scan
+        run: |
+          jf xr build-scan ${{ github.workflow }} ${{ github.run_number }} \
+            --fail-no-op
+
+      # Promote if on main and scan passed
+      - name: Promote Build
+        if: github.ref == 'refs/heads/main'
+        run: |
+          jf rt build-promote ${{ github.workflow }} ${{ github.run_number }} \
+            libs-release-local \
+            --status "Released" \
+            --comment "Promoted from CI"
