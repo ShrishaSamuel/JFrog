@@ -1,0 +1,56 @@
+Day 10 — Cleanup Policies and Maintenance
+
+# --- Artifact Cleanup ---
+
+# Find artifacts older than 90 days (AQL)
+jf rt curl -XPOST /api/search/aql \
+  -H "Content-Type: text/plain" \
+  -d '
+items.find({
+  "type": "file",
+  "repo": "libs-snapshot-local",
+  "created": {"$before": "90d"}
+})
+.include("name", "repo", "path", "created", "size")
+.sort({"$asc": ["created"]})
+.limit(100)
+'
+
+# Find artifacts never downloaded (AQL)
+jf rt curl -XPOST /api/search/aql \
+  -H "Content-Type: text/plain" \
+  -d '
+items.find({
+  "type": "file",
+  "repo": "libs-release-local",
+  "stat.downloads": {"$eq": null}
+})
+.include("name", "repo", "path", "created")
+'
+
+# Delete specific build with its artifacts
+jf rt build-discard myapp-build \
+  --max-days 30 \
+  --delete-all \
+  --artifacts
+
+# Storage summary
+jf rt curl /api/storageinfo
+
+# --- Replication ---
+
+# Create push replication (via REST API)
+curl -X PUT \
+  https://mycompany.jfrog.io/artifactory/api/replications/libs-release-local \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{
+    "url": "https://europe.jfrog.io/artifactory/libs-release-local",
+    "username": "admin",
+    "password": "password",
+    "cronExp": "0 0 */4 * * ?",
+    "repoKey": "libs-release-local",
+    "enabled": true,
+    "syncDeletes": false,
+    "syncProperties": true
+  }'
