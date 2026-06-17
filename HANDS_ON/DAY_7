@@ -1,0 +1,58 @@
+Day 7 — Xray Security Scanning
+
+# Scan a specific artifact with Xray
+jf xr scan libs-release-local/com/mycompany/myapp/1.0.0/myapp-1.0.0.jar
+
+# Scan a Docker image
+jf docker scan mycompany.jfrog.io/docker-local/myapp:1.0.0
+
+# Scan a build
+jf xr build-scan myapp-build 42
+
+# Scan with specific watches applied
+jf xr build-scan myapp-build 42 --watches "production-watch"
+
+# Scan with fail-on-critical flag (useful in CI to fail the pipeline)
+jf xr build-scan myapp-build 42 \
+  --fail-no-op \
+  --watches "security-policy-watch"
+
+# Get scan results for a build
+jf xr offenses --watches "production-watch"
+
+# Audit current project directory for vulnerabilities
+# (scans package manager files: requirements.txt, package.json, pom.xml etc.)
+jf audit
+
+# Audit with specific technology
+jf audit --pip
+jf audit --npm
+jf audit --mvn
+
+# Audit and output as table (default) or JSON
+jf audit --format table
+jf audit --format json
+
+# Create a Xray policy via REST API
+curl -X POST \
+  https://mycompany.jfrog.io/xray/api/v2/policies \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{
+    "name": "critical-cve-policy",
+    "type": "security",
+    "rules": [{
+      "name": "block-critical",
+      "criteria": {
+        "min_severity": "critical"
+      },
+      "actions": {
+        "block_download": {
+          "active": true,
+          "unscanned": false
+        },
+        "fail_build": true
+      },
+      "priority": 1
+    }]
+  }'
