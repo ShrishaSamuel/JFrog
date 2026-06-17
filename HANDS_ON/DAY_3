@@ -1,0 +1,38 @@
+Day 3 — Upload, Download, and Search Artifacts
+
+# Create a sample file to upload
+echo "Hello JFrog" > myartifact-1.0.0.txt
+
+# Upload a single artifact
+jf rt upload myartifact-1.0.0.txt libs-release-local/com/mycompany/myartifact/1.0.0/
+
+# Upload with properties attached
+jf rt upload myartifact-1.0.0.txt \
+  libs-release-local/com/mycompany/myartifact/1.0.0/ \
+  --props "env=prod;team=backend;approved=true"
+
+# Upload multiple files using a pattern
+jf rt upload "build/output/*.jar" libs-release-local/com/mycompany/myapp/1.0/
+
+# Download an artifact
+jf rt download libs-release-local/com/mycompany/myartifact/1.0.0/myartifact-1.0.0.txt
+
+# Download to a specific local directory
+jf rt download \
+  libs-release-local/com/mycompany/myartifact/1.0.0/ \
+  ./downloaded/ \
+  --recursive
+
+# Search for artifacts by name
+jf rt search "libs-release-local/*/myartifact*"
+
+# Search with AQL
+jf rt curl -XPOST /api/search/aql \
+  -H "Content-Type: text/plain" \
+  -d 'items.find({"repo":"libs-release-local","name":{"$match":"myartifact*"}})'
+
+# Get file info
+jf rt file-info libs-release-local/com/mycompany/myartifact/1.0.0/myartifact-1.0.0.txt
+
+# Delete an artifact
+jf rt delete libs-release-local/com/mycompany/myartifact/1.0.0/myartifact-1.0.0.txt
