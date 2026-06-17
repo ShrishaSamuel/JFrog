@@ -1,0 +1,39 @@
+Day 5 — Build Integration and Build Info
+What is Build Info?
+Build Info is Artifactory's traceability mechanism — a JSON document that records everything about a build:
+
+Which artifacts were published (uploaded) by this build
+Which artifacts were resolved (downloaded/used as dependencies) by this build
+Build number, timestamp, build agent, environment variables
+VCS information (Git commit, branch)
+This creates a complete audit trail: "This JAR file was built from commit abc123 on branch main by Jenkins build #42, using these exact dependency versions."
+
+Why Build Info Matters
+Traceability — trace any artifact back to its source code
+Reproducibility — know exactly what went into a build
+Security — identify which builds used a vulnerable dependency
+Compliance — prove what was deployed and when
+
+Build Integration with CI Tools
+JFrog integrates with all major CI/CD tools:
+
+Jenkins — JFrog Jenkins plugin
+GitHub Actions — jfrog/setup-jfrog-cli action
+GitLab CI — JFrog CLI in pipeline
+Azure DevOps — JFrog extension
+JFrog Pipelines — native integration
+Build Lifecycle in Artifactory
+
+1. CI resolves dependencies → downloaded from Artifactory Virtual repo
+2. CI builds the artifact
+3. CI uploads artifact → to Artifactory Local repo
+4. CI publishes Build Info → links artifact to its dependencies and VCS
+5. Promotion → artifact moves from dev repo to staging/prod repo
+
+Promotion
+Promotion is the act of moving or copying an artifact from one repository to another as it passes through stages (dev → staging → production).
+
+libs-snapshot-local → (promote after testing) → libs-release-local
+docker-dev-local    → (promote after approval) → docker-prod-local
+
+Promotion preserves the artifact — you're not rebuilding. The same binary that passed testing is what goes to production.
