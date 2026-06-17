@@ -1,0 +1,65 @@
+Core Concepts
+1. What is JFrog Artifactory and why is it used?
+Artifactory is a universal binary repository manager. It acts as the central storage and distribution hub for all artifacts in a software development lifecycle — from development dependencies to production binaries. It's used because it provides a single source of truth for binaries, caches external dependencies, integrates with CI/CD for traceability, and integrates with Xray for security scanning.
+
+2. What are the three types of repositories in Artifactory?
+
+Local — stores your own artifacts; CI/CD publishes here
+Remote — proxies and caches external registries (Maven Central, Docker Hub, npmjs)
+Virtual — aggregates local and remote repos behind a single URL; clients point to virtual repos
+3. What is the difference between a local and a remote repository?
+A local repo stores artifacts you own and publish. A remote repo is a proxy — it fetches artifacts from an external source on demand and caches them locally. Remote repos improve build speed, reliability, and security by preventing direct external access.
+
+4. What is a virtual repository and why is it recommended for clients?
+A virtual repo aggregates multiple local and remote repos under one URL. Clients (Maven, Docker, pip) configure only this one URL. Administrators can add/remove underlying repos or change resolution order without reconfiguring any client. It also enables different virtual repos for dev vs prod environments.
+
+5. What is Build Info in Artifactory?
+Build Info is a JSON metadata document published to Artifactory that links a specific build to all artifacts it produced (deployed) and all dependencies it consumed (resolved). It records build number, timestamp, Git commit, environment variables, and more. It enables full traceability — you can trace any artifact back to its source commit.
+
+Architecture and Design
+6. How does Artifactory act as a proxy for external registries?
+Remote repositories are configured with the URL of an external registry. When a client requests a dependency, Artifactory checks its cache first. On a cache miss, it fetches from the external source, serves it to the client, and caches it locally. Subsequent requests are served from cache. This makes builds faster, network-independent, and lets organizations audit/control which external packages enter their network.
+
+7. How does Artifactory support Docker?
+Artifactory implements the Docker Registry HTTP API V2, making it a fully compliant Docker registry. You can docker login, docker push, and docker pull using the Artifactory URL just like Docker Hub. It supports local repos for your images, remote repos proxying Docker Hub/gcr.io/quay.io, and virtual repos combining them.
+
+8. What is artifact promotion and why is it important?
+Promotion is copying or moving an artifact from one repository to another as it passes quality gates (dev → staging → production). It ensures the exact same binary tested in dev is what goes to production — no rebuilding, no binary drift. Promotions are audited and linked to build info.
+
+9. What is the difference between copying and promoting a build?
+Promotion is a higher-level operation that updates build metadata — it records the promotion event, changes build status, and can move/copy artifacts. A plain copy just duplicates the artifact. Promotion provides audit trail and intent; it means "this build has been approved to move to the next environment."
+
+10. How does Xray differ from traditional vulnerability scanners?
+Xray is integrated directly with Artifactory and scans the full dependency graph — not just direct dependencies but transitive ones as well. It blocks downloads proactively. It scans at the binary level (analyzing JAR contents, Docker image layers). Contextual Analysis further reduces false positives by determining if vulnerable code is actually reachable.
+
+Operations
+11. What is an Xray Policy and a Watch?
+A Policy defines rules (conditions + actions — e.g., block download if CVE severity ≥ HIGH). A Watch defines which resources (repos, builds, release bundles) are monitored. You attach policies to watches. This separation allows the same policy to apply to multiple different resource sets.
+
+12. How do you manage access control in Artifactory?
+Through Permission Targets that grant specific operations (read, deploy, delete, manage) on specific repositories to users or groups. Best practice is to assign permissions to groups, not individual users. Service accounts for CI/CD use access tokens scoped to minimum required permissions.
+
+13. What are access tokens and why are they preferred over passwords?
+Access tokens are short-lived, scopeable credentials. Unlike passwords, they can be restricted to specific repos and operations, have an expiry, can be rotated without changing the user's account, and support OIDC for passwordless authentication from CI systems like GitHub Actions.
+
+14. What is replication in Artifactory and when would you use it?
+Replication synchronizes artifacts between Artifactory instances. Use cases: geographic distribution (teams in different regions get local access to artifacts), disaster recovery (hot standby), air-gapped environments (artifacts pushed one-way into isolated network). Can be push, pull, or event-based.
+
+15. What is AQL and when would you use it over the UI search?
+AQL (Artifactory Query Language) is a DSL for querying the Artifactory database. Use it for complex searches combining multiple criteria (repo + properties + dates + download stats), for automation in CI/CD (find artifacts to clean up, find all artifacts from a build), or for reporting. UI search is for quick ad-hoc searches; AQL is for programmatic, precise queries.
+
+CI/CD and DevOps
+16. How does JFrog CLI improve CI/CD integration compared to plain REST API calls?
+JFrog CLI abstracts authentication, handles file specs for batch operations, integrates build info collection natively with build tools (Maven, Gradle, npm), handles retry logic, and provides a consistent interface across all package formats. REST API requires manual handling of all this.
+
+17. What is a Release Bundle?
+A Release Bundle is a signed, immutable, versioned collection of artifacts representing a release candidate. It's cryptographically signed (tamper-proof), version-controlled, and can be distributed to edge nodes globally via JFrog Distribution. It's the authoritative artifact of a release — instead of re-collecting artifacts at deploy time, you distribute the bundle.
+
+18. How would you set up Artifactory for a multi-team organization?
+Use JFrog Projects for team isolation — each team gets their own repositories, quotas, and RBAC. Use a central virtual repo for shared dependencies. Use Xray policies and watches at the project level. Use access tokens for service accounts. Enforce naming conventions for repositories. Set up replication for DR.
+
+19. How do you prevent developers from downloading vulnerable packages?
+Configure Xray policies with Block Download actions on watches applied to the relevant repositories. When a developer tries to download an artifact with a critical CVE, the download is blocked and a violation is raised. You can configure exceptions (Ignore Rules) for accepted risks with mandatory justification and expiry.
+
+20. What is the difference between jf rt upload and jf mvn deploy?
+jf rt upload is a generic file transfer — it uploads any file to any repo without package-format awareness. jf mvn deploy runs a Maven build with Artifactory integration — it collects build info, respects Maven repository protocols (snapshot vs release logic), handles POM metadata, and records all resolved dependencies. Use jf mvn for Maven projects; use jf rt upload for generic files or custom scripts.
