@@ -1,0 +1,46 @@
+Day 6 — Permissions and Access Control
+Permission Model
+Artifactory has a hierarchical permission model:
+
+Users → Groups → Permission Targets → Repositories
+
+Entities
+Users — individual accounts. Can be:
+
+Local (managed in Artifactory)
+LDAP/Active Directory synced
+SAML SSO
+Service accounts (for CI/CD)
+Groups — collections of users. Assign permissions to groups, not individual users (scalable).
+
+Permission Targets — define what operations are allowed on which resources.
+
+Repository Permissions
+A Permission Target specifies:
+
+Which repositories it applies to
+Which users/groups it grants access
+What operations they can perform
+
+Permission	Meaning
+Read	Download artifacts, view metadata
+Annotate	Add/edit artifact properties
+Deploy/Cache	Upload artifacts to local repos; cache to remote repos
+Delete/Overwrite	Delete artifacts or overwrite existing ones
+Manage	Manage the repository itself
+Manage Local Repos	Create/edit local repos
+Manage Remote Repos	Create/edit remote repos
+
+Access Tokens
+Recommended for CI/CD authentication instead of username/password:
+
+User tokens — scoped to a specific user
+Project tokens — scoped to a JFrog Project
+Reference tokens — short-lived, automatically rotated
+Can be restricted to specific repos and operations
+Projects
+JFrog Projects provide multi-tenancy — isolate teams within a single Artifactory instance:
+
+Each project has its own repositories, users, and quotas
+Platform admins manage the overall system
+Project admins manage their own team's resources
