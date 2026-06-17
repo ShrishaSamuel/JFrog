@@ -1,0 +1,52 @@
+Day 7 — JFrog Xray: Security and Compliance
+What is JFrog Xray?
+Xray is Artifactory's security and compliance component. It continuously scans all artifacts stored in Artifactory for:
+
+Known vulnerabilities (CVEs)
+License compliance violations
+Secrets accidentally embedded in artifacts
+Operational risk
+How Xray Works
+Xray indexes all artifacts in Artifactory and cross-references them against vulnerability databases:
+
+VulnDB — JFrog's proprietary database
+NVD (National Vulnerability Database)
+GitHub Advisories
+OSS Index
+
+Xray understands component graphs — it traverses the full dependency tree of an artifact, not just direct dependencies.
+
+Scanning Scope
+Xray can scan:
+
+JAR files → inspects all classes and embedded dependencies
+Docker images → scans every layer, every package installed
+npm packages → scans the full node_modules tree
+Python wheels → checks all requirements
+Debian/RPM packages → checks OS-level packages
+Policies and Rules
+Xray's enforcement is driven by Policies with Rules:
+
+Policy — a named set of rules that defines what to watch for and what to do.
+
+Rule — a specific condition + action:
+
+Condition: CVE severity ≥ HIGH
+Action: Block download, Generate violation, Notify
+Watch — applies a policy to specific resources (repos, builds, release bundles).
+
+Watch: "Production Docker Images"
+  └── Applies Policy: "Security Policy"
+        └── Rule: "Block CVE Critical"
+              Condition: CVSS score > 9.0
+              Action: Block download
+
+Violation Types
+Security violation — CVE found
+License violation — Prohibited or unknown license
+Operational risk — Package end-of-life, no maintainer, etc.
+Contextual Analysis
+Advanced Xray feature — instead of flagging every CVE, Xray determines if the vulnerable code path is actually reachable in your application. Reduces false positives significantly.
+
+Ignore Rules
+Acknowledge known/accepted risks — suppress specific CVEs for specific artifacts. Requires justification and has an expiry date — forces periodic re-review.
