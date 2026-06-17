@@ -1,0 +1,32 @@
+Day 2 — Create Repositories
+
+# Create a local Maven repository via CLI
+jf rt repo-create '{
+  "key": "libs-release-local",
+  "rclass": "local",
+  "packageType": "maven",
+  "handleReleases": true,
+  "handleSnapshots": false
+}'
+
+# Create a remote repository (proxy to Maven Central)
+jf rt repo-create '{
+  "key": "maven-central-remote",
+  "rclass": "remote",
+  "packageType": "maven",
+  "url": "https://repo1.maven.org/maven2"
+}'
+
+# Create a virtual repository aggregating both
+jf rt repo-create '{
+  "key": "libs-virtual",
+  "rclass": "virtual",
+  "packageType": "maven",
+  "repositories": ["libs-release-local", "maven-central-remote"],
+  "defaultDeploymentRepo": "libs-release-local"
+}'
+
+# List all repositories
+jf rt repos-list
+
+# Via UI: Administration → Repositories → Add Repository
