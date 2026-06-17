@@ -1,0 +1,43 @@
+Day 9 — Replication and High Availability
+Replication
+Replication synchronizes artifacts between Artifactory instances — for geographic distribution, DR, or team isolation.
+
+Types:
+
+Push Replication — Source instance pushes artifacts to a target instance immediately after publishing or on a schedule.
+
+HQ Artifactory → (replicates to) → Europe Artifactory
+
+Pull Replication — Target instance pulls artifacts from a source on a schedule.
+
+Event-Based Replication — Triggered immediately when an artifact is deployed (near real-time).
+
+Use Cases:
+
+Global teams — each region has a local Artifactory, synced from central
+Disaster recovery — hot standby
+Air-gapped environments — one-way push to isolated network
+What Gets Replicated
+Artifacts (binaries)
+Metadata and properties
+Build Info
+Permissions (optional)
+
+High Availability (HA)
+Artifactory can be deployed as a cluster:
+
+Multiple Artifactory nodes
+Shared database (PostgreSQL)
+Shared filestore (NFS, S3, GCS, Azure Blob)
+Load balancer in front
+In HA mode, all nodes are active — requests are distributed. If one node fails, others continue serving traffic. The database and filestore are the single source of truth.
+
+Storage Backends
+Artifactory supports multiple storage backends for the binary store:
+
+Local filesystem — single server
+NFS — shared across HA nodes
+S3 — AWS object storage
+Google Cloud Storage
+Azure Blob Storage
+S3-compatible (MinIO, Ceph)
