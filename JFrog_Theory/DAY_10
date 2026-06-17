@@ -1,0 +1,51 @@
+Day 10 — Properties, Metadata, and AQL Searching
+Properties
+Properties are key-value pairs attached to artifacts. They are the foundation of searchability and automation in Artifactory.
+
+artifact.jar
+  ├── build.number = 42
+  ├── env = prod
+  ├── git.commit = abc123
+  ├── approved.by = john.doe
+  └── status = ready-for-deploy
+
+Properties can be:
+
+Set during upload by CI/CD
+Added/modified by release processes
+Used in Xray policies
+Used as routing/filtering criteria
+Property Sets
+Pre-defined sets of allowed property values for governance — ensures consistent property values across teams.
+
+AQL (Artifactory Query Language)
+A domain-specific query language for searching artifacts by any combination of:
+
+Repository, path, filename
+File size, date
+Custom properties
+Build info
+Statistics (download count, last downloaded)
+
+AQL Structure:
+{domain}.find({criteria})
+  .include({fields})
+  .sort({field})
+  .limit({n})
+
+Example — find all artifacts deployed from build #42:
+items.find({
+  "@build.number": "42",
+  "repo": {"$match": "*-local"}
+})
+.include("name", "repo", "path", "created", "@build.number")
+
+Example — find artifacts not downloaded in 90 days:
+items.find({
+  "type": "file",
+  "repo": "libs-release-local",
+  "stat.downloaded": {"$before": "90d"}
+})
+
+Smart Repositories (Virtual with Default Deployment Target)
+Virtual repos can have a configured local repo as the default deployment target — so your build tool points to one virtual URL for both reads and writes.
