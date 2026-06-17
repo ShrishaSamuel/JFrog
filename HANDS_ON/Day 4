@@ -1,0 +1,45 @@
+Day 4 — JFrog CLI with File Specs
+
+# Create an upload spec file
+cat > upload-spec.json << 'EOF'
+{
+  "files": [
+    {
+      "pattern": "build/*.jar",
+      "target": "libs-release-local/com/mycompany/myapp/{1}/",
+      "regexp": false,
+      "props": "build.number=${BUILD_NUMBER};env=prod",
+      "recursive": false
+    }
+  ]
+}
+EOF
+
+# Upload using spec
+jf rt upload --spec upload-spec.json
+
+# Create a download spec
+cat > download-spec.json << 'EOF'
+{
+  "files": [
+    {
+      "pattern": "libs-release-local/com/mycompany/myapp/1.0.0/*",
+      "target": "./libs/",
+      "flat": true
+    }
+  ]
+}
+EOF
+
+# Download using spec
+jf rt download --spec download-spec.json
+
+# Set properties on existing artifact
+jf rt set-props \
+  "libs-release-local/com/mycompany/myapp/1.0.0/myapp-1.0.0.jar" \
+  "status=approved;approved.by=jane"
+
+# Search by property
+jf rt search \
+  --props "status=approved;env=prod" \
+  "libs-release-local/*"
