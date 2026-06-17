@@ -1,0 +1,24 @@
+Day 8 — Artifactory as Docker Registry
+Why Use Artifactory as Your Docker Registry?
+Single registry for all images (your own + proxied external)
+Security scanning via Xray on every push/pull
+Access control — who can push/pull which images
+Immutability — production images can be locked
+Replication — sync images between data centers
+Build traceability — link image to its source build
+Registry URL Structure
+
+{server-name}.jfrog.io/{repo-name}/{image-name}:{tag}
+
+mycompany.jfrog.io/docker-prod-local/myservice:1.0.0
+
+Docker Repository Types
+Local — your own images
+Remote — proxy to Docker Hub, gcr.io, quay.io, etc.
+Virtual — aggregates local + remote; single URL for all docker pulls
+Docker Content Trust
+Artifactory supports notary-based signing. Images can be signed and Xray can verify signatures — ensures image integrity from build to deployment.
+
+Multi-architecture Images (OCI)
+Artifactory stores OCI manifests and image indexes for multi-architecture images (amd64, arm64). A single pull URL works regardless of the target architecture.
+
