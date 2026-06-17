@@ -1,0 +1,44 @@
+Day 8 — PyPI and npm Repositories
+
+# ---- PyPI ----
+
+# Configure pip to use Artifactory
+pip config set global.index-url \
+  https://admin:password@mycompany.jfrog.io/artifactory/api/pypi/pypi-virtual/simple
+
+# Or set per project in pip.ini
+cat > pip.ini << 'EOF'
+[global]
+index-url = https://mycompany.jfrog.io/artifactory/api/pypi/pypi-virtual/simple
+trusted-host = mycompany.jfrog.io
+EOF
+
+# Install a package (goes through Artifactory — cached on first pull)
+pip install requests
+
+# Upload a package to Artifactory PyPI repo
+pip install twine
+twine upload \
+  --repository-url https://mycompany.jfrog.io/artifactory/api/pypi/pypi-local \
+  --username admin --password password \
+  dist/*
+
+# ---- npm ----
+
+# Configure npm to use Artifactory
+npm config set registry \
+  https://mycompany.jfrog.io/artifactory/api/npm/npm-virtual/
+
+# Authenticate
+jf npm-config \
+  --repo-resolve npm-virtual \
+  --repo-deploy npm-local
+
+# Install packages (through Artifactory)
+jf npm install --build-name npm-build --build-number 1
+
+# Publish a package
+jf npm publish --build-name npm-build --build-number 1
+
+# Publish build info
+jf rt build-publish npm-build 1
