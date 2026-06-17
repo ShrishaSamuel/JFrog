@@ -1,0 +1,33 @@
+Day 6 — Docker with Artifactory
+
+# Login to Artifactory as Docker registry
+docker login mycompany.jfrog.io \
+  --username admin \
+  --password <your-password>
+
+# Pull a public image through Artifactory (proxy)
+# First configure remote repo for Docker Hub in UI/API
+docker pull mycompany.jfrog.io/dockerhub-remote/nginx:latest
+
+# Tag your local image for Artifactory
+docker tag myapp:1.0.0 mycompany.jfrog.io/docker-local/myapp:1.0.0
+
+# Push to Artifactory
+docker push mycompany.jfrog.io/docker-local/myapp:1.0.0
+
+# Pull from Artifactory
+docker pull mycompany.jfrog.io/docker-local/myapp:1.0.0
+
+# Push Docker image with build info tracking
+jf docker push mycompany.jfrog.io/docker-local/myapp:1.0.0 \
+  --build-name myapp-docker-build \
+  --build-number 42
+
+# Publish build info
+jf rt build-publish myapp-docker-build 42
+
+# Search for Docker images in Artifactory
+jf rt search "docker-local/myapp/*"
+
+# View image layers/manifest
+jf rt curl /api/docker/docker-local/v2/myapp/manifests/1.0.0
