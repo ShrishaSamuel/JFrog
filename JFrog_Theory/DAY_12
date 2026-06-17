@@ -1,0 +1,21 @@
+Day 12 — Revision
+Architecture Summary
+
+Developer / CI/CD
+      ↓
+   JFrog CLI / Maven / Docker / pip / npm
+      ↓
+  ┌─────────────────────────────────────┐
+  │         Virtual Repository          │ ← single URL for clients
+  │    (aggregates local + remote)      │
+  └────────────┬────────────────────────┘
+               ↓
+    ┌──────────┴──────────┐
+    │                     │
+  Local Repo          Remote Repo
+  (your artifacts)    (external proxy + cache)
+    │
+    └─── Xray Scan (continuous)
+              │
+         Violations → Block / Alert / Audit
+
