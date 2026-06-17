@@ -1,0 +1,56 @@
+Day 9 — Access Control and Tokens
+
+# Create a user via REST API
+curl -X PUT \
+  https://mycompany.jfrog.io/artifactory/api/security/users/myuser \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{
+    "email": "myuser@company.com",
+    "password": "SecurePass123!",
+    "admin": false,
+    "groups": ["developers"]
+  }'
+
+# Create a group
+curl -X PUT \
+  https://mycompany.jfrog.io/artifactory/api/security/groups/developers \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{"description": "Dev team", "autoJoin": false}'
+
+# Create a permission target
+curl -X PUT \
+  https://mycompany.jfrog.io/artifactory/api/security/permissions/dev-permissions \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{
+    "name": "dev-permissions",
+    "repositories": ["libs-release-local", "docker-local"],
+    "principals": {
+      "groups": {
+        "developers": ["r", "d", "w"]
+      }
+    }
+  }'
+# r=read, d=deploy, w=annotate, m=manage, x=managedXrayMeta
+
+# Generate an access token for CI/CD
+jf access-token-create \
+  --username ci-service-account \
+  --expiry 7776000 \
+  --refreshable
+
+# Or via REST API
+curl -X POST \
+  https://mycompany.jfrog.io/access/api/v1/tokens \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{
+    "subject": "jfrt@*/users/ci-service",
+    "expiry": 7776000,
+    "scope": "applied-permissions/user"
+  }'
+
+# Rotate a token
+jf access-token-revoke <token-id>
