@@ -1,0 +1,115 @@
+3. S3 as Artifactory storage backend	Store all binaries in S3 instead of local disk
+
+Here are the steps to set up Artifactory with S3 as its storage backend on a personal laptop. Since you're working locally, I'll use MinIO as an S3-compatible backend (no AWS account needed), with Artifactory OSS running via Docker.
+
+Prerequisites
+Docker & Docker Compose installed
+~4 GB RAM free
+Ports 8081, 8082, 9000, 9001 available
+
+Step 1 — Create a project directory
+mkdir ~/artifactory-s3-lab && cd ~/artifactory-s3-lab
+
+Step 2 — Create docker-compose.yml
+version: "3.8"
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  artifactory:
+    image: releases-docker.jfrog.io/jfrog/artifactory-oss:latest
+    container_name: artifactory
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - artifactory_data:/var/opt/jfrog/artifactory
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - JF_SHARED_DATABASE_TYPE=derby   # embedded DB for local use
+
+volumes:
+  minio_data:
+  artifactory_data:
+
+Step 3 — Start the stack
+docker compose up -d
+
+Wait ~60 seconds for Artifactory to initialize.
+
+Step 4 — Create the S3 bucket in MinIO
+# Install MinIO client
+docker run --rm --network host \
+  minio/mc alias set local http://localhost:9000 minioadmin minioadmin
+
+docker run --rm --network host \
+  minio/mc mb local/artifactory-binaries
+
+Or open the MinIO console at http://localhost:9001 (user: minioadmin, pass: minioadmin) and create a bucket named artifactory-binaries.
+
+Step 5 — Configure Artifactory to use S3 storage
+Create the storage config file that Artifactory reads:
+mkdir -p ~/artifactory-s3-lab/artifactory-config
+
+Create ~/artifactory-s3-lab/artifactory-config/binarystore.xml:
+
+<config version="2">
+    <chain template="s3-storage-v3"/>
+    <provider id="s3-storage-v3" type="s3-storage-v3">
+        <endpoint>http://minio:9000</endpoint>
+        <bucketName>artifactory-binaries</bucketName>
+        <region>us-east-1</region>
+        <identity>minioadmin</identity>
+        <credential>minioadmin</credential>
+        <pathStyleAccess>true</pathStyleAccess>
+        <testConnection>true</testConnection>
+    </provider>
+</config>
+
+Copy it into the running container:
+docker cp ~/artifactory-s3-lab/artifactory-config/binarystore.xml \
+  artifactory:/var/opt/jfrog/artifactory/etc/artifactory/binarystore.xml
+
+Step 6 — Restart Artifactory to apply the storage config
+
+docker compose restart artifactory
+
+Step 7 — Verify it works
+Open Artifactory at http://localhost:8082 (default: admin / password)
+Complete the setup wizard
+Upload a binary to any repository
+Check MinIO console at http://localhost:9001 → bucket artifactory-binaries — you should see the file stored there
+
+Optional — Use real AWS S3
+Replace the binarystore.xml provider block with:
+<provider id="s3-storage-v3" type="s3-storage-v3">
+    <bucketName>your-bucket-name</bucketName>
+    <region>us-east-1</region>
+    <identity>YOUR_AWS_ACCESS_KEY_ID</identity>
+    <credential>YOUR_AWS_SECRET_ACCESS_KEY</credential>
+    <pathStyleAccess>false</pathStyleAccess>
+</provider>
+
+Remove the <endpoint> line — Artifactory will use the default AWS S3 endpoint.
+
+Teardown
+cd ~/artifactory-s3-lab
+docker compose down -v   # -v removes volumes too
