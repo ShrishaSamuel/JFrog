@@ -1,0 +1,169 @@
+5. JFrog + AWS CodePipeline / CodeBuild	CI/CD integration
+
+Prerequisites
+
+# Install required tools
+# 1. AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+
+# 2. JFrog CLI
+curl -fL https://install-cli.jfrog.io | sh
+sudo mv jf /usr/local/bin/
+
+# 3. Docker (for local Artifactory)
+# Already assumed installed
+
+Step 1 — Set up JFrog Artifactory (two options)
+Option A: JFrog Cloud (recommended for laptop — no Docker overhead)
+
+Go to jfrog.com/start-free → create a free cloud instance
+Note your instance URL: https://<your-name>.jfrog.io
+Create a generic or PyPI/npm/Maven repository (match your project type)
+Option B: Local Docker
+
+docker run -d --name artifactory \
+  -p 8081:8081 -p 8082:8082 \
+  -v $HOME/artifactory/data:/var/opt/jfrog/artifactory \
+  releases-docker.jfrog.io/jfrog/artifactory-oss:latest
+# Access at http://localhost:8082 (admin/password)
+
+Step 2 — Configure AWS Account
+# Configure AWS CLI (use free-tier account)
+aws configure
+# Enter: Access Key ID, Secret Access Key, region (e.g. us-east-1), output: json
+
+# Store JFrog credentials in AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name "jfrog/credentials" \
+  --secret-string '{"JFROG_URL":"https://<your-name>.jfrog.io","JFROG_USER":"admin","JFROG_PASSWORD":"<your-token>"}'
+
+Step 3 — Create a Sample Project
+mkdir jfrog-codebuild-demo && cd jfrog-codebuild-demo
+git init
+
+# Simple Python project
+cat > requirements.txt << 'EOF'
+requests==2.31.0
+EOF
+
+cat > app.py << 'EOF'
+import requests
+print("Hello from CI/CD + JFrog!")
+EOF
+
+Step 4 — Create buildspec.yml (CodeBuild instructions)
+# buildspec.yml
+version: 0.2
+
+env:
+  secrets-manager:
+    JFROG_URL: "jfrog/credentials:JFROG_URL"
+    JFROG_USER: "jfrog/credentials:JFROG_USER"
+    JFROG_PASSWORD: "jfrog/credentials:JFROG_PASSWORD"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      # Install JFrog CLI
+      - curl -fL https://install-cli.jfrog.io | sh
+      - mv jf /usr/local/bin/
+
+  pre_build:
+    commands:
+      # Authenticate with JFrog
+      - jf config add artifactory --url=$JFROG_URL --user=$JFROG_USER --password=$JFROG_PASSWORD --interactive=false
+      - jf rt ping
+
+  build:
+    commands:
+      - echo "Running build..."
+      - pip install -r requirements.txt
+      - python app.py
+      # Package artifact
+      - zip -r app-$CODEBUILD_BUILD_NUMBER.zip app.py requirements.txt
+
+  post_build:
+    commands:
+      # Upload artifact to JFrog Artifactory
+      - jf rt u "app-$CODEBUILD_BUILD_NUMBER.zip" "my-repo/builds/" --build-name=MyApp --build-number=$CODEBUILD_BUILD_NUMBER
+      - jf rt bce MyApp $CODEBUILD_BUILD_NUMBER   # collect env info
+      - jf rt bp MyApp $CODEBUILD_BUILD_NUMBER    # publish build info
+
+artifacts:
+  files:
+    - "app-*.zip"
+
+Step 5 — Push to AWS CodeCommit (or GitHub)
+# Option A: CodeCommit
+aws codecommit create-repository --repository-name jfrog-codebuild-demo
+git remote add origin https://git-codecommit.us-east-1.amazonaws.com/v1/repos/jfrog-codebuild-demo
+git add . && git commit -m "Initial commit"
+git push origin main
+
+# Option B: GitHub — just push normally and use it as source
+
+Step 6 — Create CodeBuild Project (via AWS Console or CLI)
+# Create IAM role for CodeBuild first
+cat > codebuild-trust.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "codebuild.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}
+EOF
+
+aws iam create-role --role-name CodeBuildJFrogRole --assume-role-policy-document file://codebuild-trust.json
+
+# Attach policies (SecretsManager, S3, CloudWatch)
+aws iam attach-role-policy --role-name CodeBuildJFrogRole \
+  --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
+aws iam attach-role-policy --role-name CodeBuildJFrogRole \
+  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+# Create CodeBuild project
+aws codebuild create-project \
+  --name jfrog-demo-build \
+  --source '{"type":"CODECOMMIT","location":"https://git-codecommit.us-east-1.amazonaws.com/v1/repos/jfrog-codebuild-demo"}' \
+  --artifacts '{"type":"NO_ARTIFACTS"}' \
+  --environment '{"type":"LINUX_CONTAINER","computeType":"BUILD_GENERAL1_SMALL","image":"aws/codebuild/standard:7.0"}' \
+  --service-role CodeBuildJFrogRole
+
+Step 7 — Create CodePipeline
+# Via AWS Console: CodePipeline → Create Pipeline
+# Stage 1: Source  → CodeCommit (or GitHub with OAuth)
+# Stage 2: Build   → CodeBuild → select jfrog-demo-build project
+# Stage 3: (optional) Deploy → S3 / ECS / Lambda
+Or use the console at AWS → CodePipeline → Create pipeline — it's a 5-step wizard.
+
+Step 8 — Trigger & Verify
+# Trigger a build manually
+aws codebuild start-build --project-name jfrog-demo-build
+
+# Watch logs
+aws codebuild batch-get-builds --ids <build-id> | jq '.builds[0].currentPhase'
+
+# Verify artifact in JFrog
+jf rt s "my-repo/builds/"
+
+Architecture Summary
+Git push
+   │
+   ▼
+CodePipeline (Source stage)
+   │
+   ▼
+CodeBuild (buildspec.yml)
+   ├─ Pulls dependencies from JFrog (optional)
+   ├─ Runs build + tests
+   └─ Pushes artifact + build-info to JFrog Artifactory
+
+Key Notes
+Free tier limits: AWS CodeBuild gives 100 build minutes/month free; JFrog Cloud free tier has 2GB storage
+Secrets: Always use AWS Secrets Manager or SSM — never hardcode JFrog credentials in buildspec.yml
+JFrog Build Info: The jf rt bp command links the artifact back to the exact CodeBuild run, giving you full traceability
