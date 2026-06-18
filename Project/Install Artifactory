@@ -1,0 +1,92 @@
+Area	What it covers
+1. Install Artifactory on EC2	Self-hosted JFrog on AWS VM
+2. JFrog SaaS + AWS	JFrog Cloud hosted on AWS region
+3. S3 as Artifactory storage backend	Store all binaries in S3 instead of local disk
+4. JFrog + AWS ECR	Mirror/proxy ECR through Artifactory
+5. JFrog + AWS CodePipeline / CodeBuild	CI/CD integration
+6. JFrog + EKS	Helm charts, Docker images for Kubernetes
+7. JFrog + IAM / OIDC	Passwordless auth using AWS IAM roles
+
+
+1. Install Artifactory on EC2	Self-hosted JFrog on AWS VM
+
+Here are the steps to install JFrog Artifactory (OSS or Pro) on an AWS EC2 instance:
+
+1. Launch EC2 Instance
+AMI: Ubuntu 22.04 LTS or Amazon Linux 2
+Instance type: t3.medium minimum (4 GB RAM); t3.large or better for production
+Storage: 30+ GB EBS (gp3)
+Security Group: open ports 8081 (Artifactory) and 8082 (router/UI)
+
+2. Connect & Install Prerequisites
+ssh -i your-key.pem ubuntu@<EC2_PUBLIC_IP>
+
+# Update and install Java 17
+sudo apt update && sudo apt install -y openjdk-17-jdk curl gnupg2
+java -version
+
+3. Install Artifactory via APT (JFrog repo)
+# Add JFrog GPG key and repo
+curl -fsSL https://releases.jfrog.io/artifactory/api/gpg/key/public | \
+  sudo gpg --dearmor -o /usr/share/keyrings/jfrog.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/jfrog.gpg] \
+  https://releases.jfrog.io/artifactory/artifactory-debs xenial contrib" | \
+  sudo tee /etc/apt/sources.list.d/jfrog.list
+
+sudo apt update
+
+# For OSS (free):
+sudo apt install -y jfrog-artifactory-oss
+
+# For Pro Trial:
+# sudo apt install -y jfrog-artifactory-pro
+
+4. Start & Enable Artifactory
+sudo systemctl enable artifactory
+sudo systemctl start artifactory
+sudo systemctl status artifactory
+
+5. Access the UI
+Open in browser: http://<EC2_PUBLIC_IP>:8082/ui
+
+Default credentials: admin / password
+You'll be prompted to change the password on first login
+
+6. (Optional) Reverse Proxy with Nginx + HTTPS
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# Configure nginx to proxy to localhost:8082
+sudo tee /etc/nginx/sites-available/artifactory <<'EOF'
+server {
+    listen 80;
+    server_name your-domain.example.com;
+
+    location / {
+        proxy_pass http://localhost:8082;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+sudo ln -s /etc/nginx/sites-available/artifactory /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# TLS via Let's Encrypt
+sudo certbot --nginx -d your-domain.example.com
+
+7. Firewall (if UFW is active)
+sudo ufw allow 8082/tcp   # direct access
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+Key Paths
+Purpose	Path
+Config	/var/opt/jfrog/artifactory/etc/
+Logs	/var/opt/jfrog/artifactory/log/
+Data/storage	/var/opt/jfrog/artifactory/var/data/
+For production, consider mounting an EBS volume at /var/opt/jfrog/artifactory before starting the service so artifact storage survives instance replacement.
+
