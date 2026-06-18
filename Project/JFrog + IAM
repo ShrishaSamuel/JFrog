@@ -1,0 +1,78 @@
+7. JFrog + IAM / OIDC	Passwordless auth using AWS IAM roles
+
+Prerequisites
+Tool	Command to verify
+AWS CLI v2	aws --version
+JFrog CLI	jf --version
+AWS account	Console access
+JFrog Cloud account	jfrog.com (free tier works)
+
+Step 1 — Set Up JFrog Cloud (Free Tier)
+Sign up at https://jfrog.com/start-free/
+Note your instance URL: https://<your-name>.jfrog.io
+Create a repository (e.g., a generic or Docker repo)
+
+Step 2 — Configure AWS: Create an OIDC Identity Provider
+JFrog must be registered as a trusted OIDC provider in AWS IAM so AWS can issue tokens that JFrog validates.
+# Get JFrog's OIDC discovery URL (your JFrog instance)
+JFROG_URL="https://<your-name>.jfrog.io"
+
+# Fetch the thumbprint of JFrog's TLS cert (AWS requires this)
+THUMBPRINT=$(openssl s_client -connect <your-name>.jfrog.io:443 \
+  -showcerts </dev/null 2>/dev/null \
+  | openssl x509 -fingerprint -noout -sha1 \
+  | sed 's/://g' | awk -F= '{print tolower($2)}')
+
+echo "Thumbprint: $THUMBPRINT"
+
+Then in AWS Console → IAM → Identity Providers → Add Provider:
+
+Provider type: OpenID Connect
+Provider URL: https://<your-name>.jfrog.io
+Audience: jfrog-oidc (you'll use this later in JFrog config)
+Thumbprint: paste the value from above
+Or via CLI:
+
+aws iam create-open-id-connect-provider \
+  --url "https://<your-name>.jfrog.io" \
+  --client-id-list "jfrog-oidc" \
+  --thumbprint-list "<THUMBPRINT>"
+
+Step 3 — Create an IAM Role for JFrog OIDC
+# Get your AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create the trust policy
+cat > trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/<your-name>.jfrog.io"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "<your-name>.jfrog.io:aud": "jfrog-oidc"
+        }# Get your AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create the trust policy
+cat > trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/<your-name>.jfrog.io"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "<your-name>.jfrog.io:aud": "jfrog-oidc"
+        }
+
+
