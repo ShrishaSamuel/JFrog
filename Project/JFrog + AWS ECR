@@ -1,0 +1,82 @@
+4. JFrog + AWS ECR	Mirror/proxy ECR through Artifactory
+
+Here are the steps to mirror/proxy AWS ECR through JFrog Artifactory on your personal laptop:
+
+Prerequisites
+Install JFrog Artifactory (OSS or Pro Trial)
+
+# Using Docker (easiest for local)
+docker run -d --name artifactory \
+  -p 8081:8081 -p 8082:8082 \
+  -v artifactory-data:/var/opt/jfrog/artifactory \
+  releases-docker.jfrog.io/jfrog/artifactory-oss:latest
+
+Access at http://localhost:8082 (default creds: admin/password)
+
+AWS CLI configured with credentials that have ECR read access:
+aws configure
+# or use ~/.aws/credentials
+
+Step 1 — Get ECR Auth Token
+aws ecr get-login-password --region <your-region>
+# Save this token — it's valid for 12 hours
+
+Step 2 — Create a Remote Docker Repository in Artifactory
+Go to Administration → Repositories → Remote → New Remote Repository
+
+Select Docker
+
+Fill in:
+
+Field	Value
+Repository Key	ecr-proxy
+URL	https://<account-id>.dkr.ecr.<region>.amazonaws.com
+Username	AWS
+Password	(paste the token from Step 1)
+Enable Token Authentication	✓
+Under Advanced, set Block Mismatching Mime Types if needed
+
+Save
+
+Step 3 — Create a Virtual Repository (Optional but Recommended)
+Go to Repositories → Virtual → New
+Select Docker, key: docker-virtual
+Add ecr-proxy as an included repository
+Set as Default Deployment Repo if desired
+
+Step 4 — Configure Docker to Use Artifactory as Registry
+# Login to Artifactory's Docker registry
+docker login localhost:8082 -u admin -p <artifactory-password>
+
+Add to daemon.json (or Docker Desktop settings):
+{
+  "insecure-registries": ["localhost:8082"]
+}
+Restart Docker daemon if needed.
+
+Step 5 — Pull Images via the Proxy
+# Instead of pulling directly from ECR:
+# docker pull <account-id>.dkr.ecr.<region>.amazonaws.com/myimage:tag
+
+# Pull through Artifactory:
+docker pull localhost:8082/ecr-proxy/myimage:tag
+Artifactory will fetch from ECR, cache it, and serve future pulls locally.
+
+Step 6 — Automate Token Refresh (ECR tokens expire in 12h)
+Create a cron job or script:
+#!/bin/bash
+TOKEN=$(aws ecr get-login-password --region <region>)
+
+curl -u admin:<admin-pass> -X POST \
+  "http://localhost:8082/artifactory/api/repositories/ecr-proxy" \
+  -H "Content-Type: application/json" \
+  -d "{\"password\": \"$TOKEN\"}"
+
+  Schedule with crontab -e:
+  0 */11 * * * /path/to/refresh-ecr-token.sh
+
+  Key Notes
+Free OSS tier supports remote repos but lacks some enterprise features
+ECR requires the AWS username with the short-lived token as password
+If using Artifactory Cloud (free tier) instead of local Docker, the setup is the same but URL changes to your cloud instance
+For production, use IAM roles or credential rotation instead of static tokens
