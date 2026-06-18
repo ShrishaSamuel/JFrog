@@ -1,0 +1,87 @@
+2. JFrog SaaS + AWS	JFrog Cloud hosted on AWS region
+
+JFrog Cloud (SaaS) on AWS
+JFrog Cloud is fully managed — no EC2 to provision. JFrog runs the infrastructure on AWS for you.
+
+1. Sign Up / Create Instance
+Go to https://jfrog.com/start-free
+Choose JFrog Cloud (not Self-Hosted)
+Select AWS as the cloud provider
+Pick your AWS region (e.g., us-east-1, eu-west-1)
+Choose a subdomain: https://yourcompany.jfrog.io
+Free tier includes 2 GB storage + 10 GB transfer/month.
+
+2. Connect Your AWS Workloads
+CLI / SDK authentication
+
+# Set up JFrog CLI
+curl -fL https://install-cli.jfrog.io | sh
+
+jf config add \
+  --url https://yourcompany.jfrog.io \
+  --user your@email.com \
+  --password <API_KEY_OR_TOKEN> \
+  --interactive=false
+
+Docker login
+
+docker login yourcompany.jfrog.io \
+  -u your@email.com \
+  -p <API_TOKEN>
+
+3. Push/Pull Artifacts from EC2 or CI
+
+# Push a Docker image
+docker tag myapp:latest yourcompany.jfrog.io/docker-local/myapp:latest
+docker push yourcompany.jfrog.io/docker-local/myapp:latest
+
+# Pull
+docker pull yourcompany.jfrog.io/docker-local/myapp:latest
+
+# Push a generic artifact
+jf rt upload "build/*.zip" my-generic-repo/releases/
+
+4. Use as npm / pip / Maven Proxy
+JFrog Cloud acts as a caching proxy for public registries — reduces egress costs and adds security scanning.
+
+# npm
+npm config set registry https://yourcompany.jfrog.io/artifactory/api/npm/npm-virtual/
+
+# pip
+pip install --index-url \
+  https://your@email.com:<TOKEN>@yourcompany.jfrog.io/artifactory/api/pypi/pypi-virtual/simple \
+  requests
+
+5. IAM / OIDC Integration (EC2 / CodeBuild / GitHub Actions)
+Avoid hardcoded credentials — use OIDC tokens:
+
+# GitHub Actions example
+- name: Authenticate to JFrog
+  uses: jfrog/setup-jfrog-cli@v4
+  env:
+    JF_URL: https://yourcompany.jfrog.io
+  with:
+    oidc-provider-name: github   # configured in JFrog Platform → Security → OIDC
+
+For EC2 with an IAM role, use JFrog Access Token stored in AWS Secrets Manager:
+
+aws secretsmanager get-secret-value \
+  --secret-id jfrog/api-token \
+  --query SecretString --output text | \
+  docker login yourcompany.jfrog.io -u ci-user --password-stdin
+
+6. Network Peering (Optional, Enterprise+)
+For low-latency, private connectivity between your AWS VPC and JFrog Cloud:
+
+Go to JFrog Platform → Administration → Network
+Enable AWS PrivateLink (Enterprise+ plan)
+Accept the VPC Endpoint in your AWS account under VPC → Endpoint Services
+
+Key Differences vs Self-Hosted
+JFrog Cloud (SaaS)	Self-Hosted on EC2
+Maintenance	JFrog manages	You manage
+Upgrades	Automatic	Manual
+Cost model	Subscription by storage/transfer	EC2 + EBS costs
+PrivateLink	Enterprise+	Native VPC
+Data residency	Region-locked	Full control
+
