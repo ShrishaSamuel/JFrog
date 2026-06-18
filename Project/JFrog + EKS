@@ -1,0 +1,224 @@
+6. JFrog + EKS	Helm charts, Docker images for Kubernetes
+
+Here's a practical guide to run this project on your personal laptop using Minikube (local Kubernetes, simulating EKS) and JFrog Artifactory OSS (free tier).
+
+Prerequisites — Install these first
+# 1. Docker (required for everything)
+sudo apt-get install docker.io -y
+sudo usermod -aG docker $USER && newgrp docker
+
+# 2. kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+
+# 3. Minikube (local Kubernetes cluster = simulates EKS)
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# 4. Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+Step 1 — Start Local Kubernetes Cluster
+minikube start --driver=docker --cpus=4 --memory=6g
+minikube status
+kubectl get nodes
+
+Step 2 — Deploy JFrog Artifactory via Helm
+# Add JFrog Helm repo
+helm repo add jfrog https://charts.jfrog.io
+helm repo update
+
+# Create namespace
+kubectl create namespace jfrog
+
+# Install Artifactory OSS (free, no license needed)
+helm install artifactory jfrog/artifactory-oss \
+  --namespace jfrog \
+  --set artifactory.service.type=NodePort \
+  --set postgresql.postgresqlPassword=password123 \
+  --set artifactory.persistence.size=5Gi
+
+# Check pods coming up (takes 2-3 min)
+kubectl get pods -n jfrog -w
+
+Step 3 — Access JFrog UI
+# Get the access URL
+minikube service artifactory-artifactory-oss -n jfrog --url
+
+# Open that URL in browser
+# Default login: admin / password
+# Change password on first login
+
+Step 4 — Create a Docker Repository in JFrog
+In the UI:
+
+Administration → Repositories → Add Repository → Local
+Type: Docker, Name: my-docker-local
+Save
+
+Step 5 — Push a Docker Image to JFrog
+# Get minikube IP
+JFROG_URL=$(minikube ip)
+JFROG_PORT=$(kubectl get svc artifactory-artifactory-oss -n jfrog -o jsonpath='{.spec.ports[0].nodePort}')
+
+# Configure Docker to allow insecure registry
+echo '{"insecure-registries": ["'"$JFROG_URL:$JFROG_PORT"'"]}' | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+
+# Login to JFrog registry
+docker login $JFROG_URL:$JFROG_PORT -u admin -p <your-password>
+
+# Tag and push an image
+docker pull nginx:alpine
+docker tag nginx:alpine $JFROG_URL:$JFROG_PORT/my-docker-local/nginx:1.0
+docker push $JFROG_URL:$JFROG_PORT/my-docker-local/nginx:1.0
+
+Step 6 — Deploy from JFrog Registry using a Helm Chart
+Create a simple Helm chart that pulls the image from JFrog:
+helm create my-app
+
+Edit my-app/values.yaml:
+image:
+  repository: <JFROG_URL>:<JFROG_PORT>/my-docker-local/nginx
+  tag: "1.0"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: jfrog-secret
+
+Create the pull secret so Kubernetes can authenticate to JFrog:
+kubectl create secret docker-registry jfrog-secret \
+  --docker-server=$JFROG_URL:$JFROG_PORT \
+  --docker-username=admin \
+  --docker-password=<your-password> \
+  --namespace=default
+
+Deploy:
+helm install my-app ./my-app
+kubectl get pods
+kubectl get svc my-app
+
+Step 7 — Verify End-to-End
+# Check pod is running and pulled from JFrog
+kubectl describe pod <pod-name> | grep -A5 "Events"
+# Should show: Pulling image "JFROG_URL/my-docker-local/nginx:1.0"
+
+# Access the app
+minikube service my-app --url
+
+Architecture Summary
+┌──────────────┐    docker push     ┌──────────────────┐
+
+
+│  Your laptop │ ─────────────────► │ JFrog Artifactory│
+│  (Docker)    │                    │ (Helm-deployed   │
+└──────────────┘                    │  on Minikube)    │
+                                    └────────┬─────────┘
+                                             │ image pull
+                                    ┌────────▼─────────┐
+                                    │ Kubernetes Pod   │
+                                    │ (Minikube = EKS) │
+                                    └──────────────────┘
+
+Troubleshooting Tips
+Issue	Fix
+Pods stuck in Pending	minikube start --memory=8g — needs more RAM
+JFrog takes too long	Normal — wait 3-5 min, watch with -w
+Docker push fails	Verify insecure-registry config, restart Docker
+ImagePullBackOff	Check pull secret name matches values.yaml
+This gives you the full JFrog → Helm → Kubernetes workflow locally before taking it to real AWS EKS.
+
+
+Important: EKS is NOT AWS Free Tier
+EKS control plane costs $0.10/hr ($72/month) regardless of free tier. You'll get a bill.
+
+Truly Free AWS Alternative — k3s on EC2
+Uses EC2 t2.micro (free tier: 750 hrs/month) + JFrog Cloud free tier.
+
+Step 1 — JFrog Cloud Free Account
+Go to jfrog.com/start-free → sign up for free cloud instance.
+You'll get a URL like: https://yourname.jfrog.io
+
+Step 2 — Launch EC2 t2.micro
+In AWS Console:
+
+EC2 → Launch Instance
+AMI: Ubuntu 22.04 LTS (free tier eligible)
+Type: t2.micro (free tier)
+Security group — open ports: 22 (SSH), 80, 443, 6443, 8080, 30000-32767
+Create/download a key pair (.pem file)
+Launch
+
+Step 3 — Install k3s (Lightweight Kubernetes)
+# SSH into your EC2 instance
+ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
+
+# Install k3s (single-node Kubernetes cluster)
+curl -sfL https://get.k3s.io | sh -
+
+# Verify
+sudo kubectl get nodes
+
+# Set up kubectl for your user
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER ~/.kube/config
+kubectl get nodes
+
+Step 4 — Install Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm version
+
+Step 5 — Push Docker Image to JFrog Cloud
+# On your EC2 instance (or local machine with Docker)
+docker login yourname.jfrog.io -u <your-email> -p <your-api-key>
+# API key: JFrog UI → top-right avatar → Edit Profile → Generate API Key
+
+docker pull nginx:alpine
+docker tag nginx:alpine yourname.jfrog.io/default-docker-local/nginx:1.0
+docker push yourname.jfrog.io/default-docker-local/nginx:1.0
+
+Step 6 — Create Kubernetes Pull Secret
+kubectl create secret docker-registry jfrog-secret \
+  --docker-server=yourname.jfrog.io \
+  --docker-username=<your-email> \
+  --docker-password=<your-api-key>
+
+Step 7 — Deploy via Helm from JFrog
+# Add JFrog as Helm repo (for Helm charts stored in JFrog)
+helm repo add my-jfrog https://yourname.jfrog.io/artifactory/default-helm \
+  --username <your-email> --password <your-api-key>
+helm repo update
+
+# OR just use a local chart pointing to JFrog Docker image
+helm create my-app
+
+# Edit my-app/values.yaml:
+#   image.repository: yourname.jfrog.io/default-docker-local/nginx
+#   image.tag: "1.0"
+#   imagePullSecrets: [{name: jfrog-secret}]
+
+helm install my-app ./my-app
+kubectl get pods
+kubectl get svc
+
+Architecture (Free Tier)
+Your Browser
+     │
+     ▼
+EC2 t2.micro (free tier)
+├── k3s (simulates EKS)
+│    └── Pod pulls image from ──────────────────┐
+│                                               ▼
+└── Helm deploys app              JFrog Cloud (free tier)
+                                  yourname.jfrog.io
+                                  (Docker + Helm repos)
+
+Cost Summary
+Service	Cost
+EC2 t2.micro	Free (750 hrs/month)
+JFrog Cloud	Free (2GB storage, 10 users)
+EBS storage (8GB default)	Free (30GB/month)
+EKS	❌ $0.10/hr — skip it
+If you later want real EKS experience, spin it up for 1-2 hours ($0.20), then eksctl delete cluster immediately to avoid ongoing charges.
+
